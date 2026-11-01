@@ -678,6 +678,20 @@ textarea::placeholder {
   gap: 9px;
 }
 
+/* The toggle sits next to the "Packs" heading and only summarises the current
+   choice, so it is sized like a label rather than a full-width button. */
+.pack-toggle {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  gap: 8px;
+}
+
+.pack-caret {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  line-height: 1;
+}
+
 .pack {
   display: grid;
   gap: 3px;

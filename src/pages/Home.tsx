@@ -34,7 +34,7 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
   const [resume, setResume] = useState<{ code: string; name: string } | null>(null);
   const [packs, setPacks] = useState<QuestionPack[]>([]);
   const [packId, setPackId] = useState<string>("party");
-  const [showPacks, setShowPacks] = useState(false);
+  const [showPacks, setShowPacks] = useState(true);
   const [customText, setCustomText] = useState("");
   const [customMode, setCustomMode] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -173,18 +173,24 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
 
         {mode === "home" && (
           <div className="stack" style={{ gap: 10 }}>
-            <button
-              className="btn btn-ghost"
-              onClick={() => setShowPacks((v) => !v)}
-              aria-expanded={showPacks}
-              disabled={busy}
-            >
-              {customMode
-                ? `Pack: Custom (${customPrompts.length})`
-                : selectedPack
-                  ? `Pack: ${selectedPack.name}`
-                  : "Choose a pack"}
-            </button>
+            <div className="spread">
+              <span className="tiny">Packs</span>
+              <button
+                className="btn btn-ghost pack-toggle"
+                onClick={() => setShowPacks((v) => !v)}
+                aria-expanded={showPacks}
+                disabled={busy}
+              >
+                {customMode
+                  ? `Custom (${customPrompts.length})`
+                  : selectedPack
+                    ? selectedPack.name
+                    : "Choose a pack"}
+                <span className="pack-caret" aria-hidden="true">
+                  {showPacks ? "−" : "+"}
+                </span>
+              </button>
+            </div>
 
             {showPacks && (
               <div className="pack-list pulse-in">
