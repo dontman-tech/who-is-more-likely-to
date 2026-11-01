@@ -35,6 +35,7 @@ export const DEFAULT_CONFIG: RoomConfig = {
   votingSeconds: 30,
   selfVote: false,
   skipsAllowed: true,
+  revealVotes: true,
 };
 
 const MIN_PLAYERS = 3;
@@ -379,10 +380,24 @@ export function reveal(room: Room, now = Date.now()): void {
   room.tally = tally;
   room.maxVotes = maxVotes;
   room.winners = winners;
-  room.breakdown = room.eligible.map((voter) => ({
-    voter,
-    target: room.votes[voter] ?? null,
-  }));
+  // Freeze names now, while every voter and target is still in the room. An
+  // empty list is how "keep votes private" is expressed, so the client needs
+  // no extra flag to decide whether to render the breakdown.
+  // `!== false` rather than a truthy check: a room created before this option
+  // existed has no such key, and should keep showing votes rather than silently
+  // hiding them.
+  room.breakdown =
+    room.config.revealVotes !== false
+      ? room.eligible
+          .filter((voter) => room.players[voter])
+          .map((voter) => {
+            const target = room.votes[voter] ?? null;
+            return {
+              voter: room.players[voter].name,
+              target: target === null ? null : (room.players[target]?.name ?? null),
+            };
+          })
+      : [];
   room.phase = "reveal";
   room.phaseEndsAt = null;
   bump(room, now);
@@ -425,7 +440,11 @@ export function tick(room: Room, now = Date.now()): boolean {
 }
 
 /** Build the projection a specific client is allowed to see. */
-export function toPublicRoom(room: Room, viewerId: string): PublicRoom {
+export function toPublicRoom(
+  room: Room,
+  viewerId: string,
+  now = Date.now(),
+): PublicRoom {
   const players = room.order
     .map((id) => toPublicPlayer(room, room.players[id]))
     .filter(isPublicPlayer);
@@ -471,6 +490,7 @@ export function toPublicRoom(room: Room, viewerId: string): PublicRoom {
           }
         : null,
     phaseEndsAt: room.phaseEndsAt,
+    serverNow: now,
     you: {
       id: viewerId,
       name: room.players[viewerId]?.name ?? "",

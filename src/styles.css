@@ -1,16 +1,38 @@
+/* ==========================================================================
+   Who Is Most Likely To? — visual system
+   --------------------------------------------------------------------------
+   Direction: a risograph party flyer. Cream paper, saturated flat inks, thick
+   black keylines, hard offset shadows, and a deliberate tilt. Nothing here is
+   translucent and nothing is a soft gradient: the depth comes from offset
+   shadows that sit *beside* the shape, the way ink sits beside a screen-print.
+   ========================================================================== */
+
 :root {
-  --bg: #070b18;
-  --ink: #f2f5ff;
-  --muted: #9aa6c8;
-  --accent: #7c5cff;
-  --accent-2: #22d3ee;
-  --accent-3: #ff5c8a;
-  --glass-bg: rgba(255, 255, 255, 0.07);
-  --glass-bg-strong: rgba(255, 255, 255, 0.12);
-  --glass-border: rgba(255, 255, 255, 0.16);
-  --glass-shadow: 0 18px 50px rgba(3, 6, 20, 0.55);
-  --radius: 22px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --paper: #f7f0dd;
+  --paper-2: #fffaf0;
+  --ink: #14110f;
+  --ink-soft: #4a4038;
+
+  /* Riso ink spots. Flat, fully saturated, never blended. */
+  --pink: #ff3d81;
+  --blue: #1f4bff;
+  --yellow: #ffd23f;
+  --green: #0fc97f;
+  --purple: #7b2ff7;
+  --orange: #ff6b1a;
+
+  --line: 3px solid var(--ink);
+  --shadow: 6px 6px 0 var(--ink);
+  --shadow-sm: 4px 4px 0 var(--ink);
+  --shadow-lg: 10px 10px 0 var(--ink);
+
+  --radius: 6px;
+  --ease: cubic-bezier(0.2, 0.9, 0.25, 1);
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --font-display: "Archivo Black", "Arial Black", system-ui, sans-serif;
+  --font-body: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
 * {
@@ -25,98 +47,93 @@ body {
 }
 
 body {
-  background: var(--bg);
+  background: var(--paper);
   color: var(--ink);
-  font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  text-rendering: optimizeLegibility;
 }
 
-/* Animated aurora background. Fixed + blur so it never affects layout cost. */
-.aurora {
+/* Paper texture: a halftone dot field, like an unprinted riso sheet. Fixed so
+   it costs nothing to scroll and never participates in layout. */
+.paper {
   position: fixed;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
-  background: radial-gradient(120% 120% at 50% 0%, #131a35 0%, var(--bg) 60%);
-}
-
-.aurora span {
-  position: absolute;
-  display: block;
-  width: 46vmax;
-  height: 46vmax;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.5;
-  animation: drift 22s var(--ease) infinite alternate;
-}
-
-.aurora span:nth-child(1) {
-  background: var(--accent);
-  top: -12vmax;
-  left: -10vmax;
-}
-.aurora span:nth-child(2) {
-  background: var(--accent-2);
-  bottom: -16vmax;
-  right: -12vmax;
-  animation-delay: -7s;
-}
-.aurora span:nth-child(3) {
-  background: var(--accent-3);
-  top: 30%;
-  left: 45%;
-  animation-delay: -14s;
-}
-
-@keyframes drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(6vmax, -4vmax, 0) scale(1.15);
-  }
+  pointer-events: none;
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(var(--ink) 0.6px, transparent 0.7px),
+    radial-gradient(var(--ink) 0.6px, transparent 0.7px);
+  background-size: 22px 22px, 22px 22px;
+  background-position: 0 0, 11px 11px;
+  opacity: 0.09;
 }
 
 .shell {
-  max-width: 720px;
+  max-width: 660px;
   margin: 0 auto;
-  padding: 22px 18px 56px;
+  padding: 20px 16px 64px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   min-height: 100dvh;
 }
 
-/* ---- Glass primitives ---- */
-.glass {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  position: relative;
-  overflow: hidden;
+/* ---- Type ---------------------------------------------------------------- */
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  margin: 0;
+  line-height: 0.98;
+  text-transform: uppercase;
 }
 
-/* Specular highlight across the top edge — sells the glass illusion. */
-.glass::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.55),
-    transparent
-  );
+h1 {
+  font-size: clamp(2.4rem, 12vw, 4.2rem);
 }
 
-.card {
-  padding: 20px;
+h2 {
+  font-size: clamp(1.25rem, 5vw, 1.6rem);
+}
+
+h3 {
+  font-size: 1.05rem;
+}
+
+p {
+  margin: 0;
+}
+
+.lead {
+  color: var(--ink-soft);
+  line-height: 1.55;
+  font-size: 1rem;
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+/* The "small caps label" used above sections and inputs. Mono, tracked out,
+   with a hard ink rule above it — a printer's slug line. */
+.tiny {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  padding-bottom: 2px;
+  border-bottom: 2px solid var(--ink);
 }
 
 .stack {
@@ -136,44 +153,107 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .grow {
   flex: 1;
 }
 
-h1 {
-  font-size: clamp(1.9rem, 7vw, 2.6rem);
-  line-height: 1.05;
-  margin: 0;
-  letter-spacing: -0.02em;
+/* ---- Cards --------------------------------------------------------------- */
+
+.glass {
+  background: var(--paper-2);
+  border: var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  position: relative;
 }
 
-h2 {
-  font-size: 1.2rem;
-  margin: 0;
+.card {
+  padding: 20px;
 }
 
-.lead {
-  color: var(--muted);
-  margin: 0;
-  line-height: 1.5;
+/* A colored tab across the top-left corner, like a file folder. */
+.card-tabbed {
+  padding-top: 30px;
 }
 
-.muted {
-  color: var(--muted);
-}
-
-.tiny {
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
+.card-tabbed::after {
+  content: attr(data-tab);
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  padding: 4px 10px;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--radius) 0 8px 0;
 }
 
-/* ---- Controls ---- */
+/* ---- Stickers, tags, stamps --------------------------------------------- */
+
+/* A rotated label that breaks the grid on purpose. */
+.sticker {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 3px 3px 0 var(--ink);
+  transform: rotate(-3deg);
+}
+
+.sticker.pink {
+  background: var(--pink);
+  color: var(--paper-2);
+}
+.sticker.blue {
+  background: var(--blue);
+  color: var(--paper-2);
+}
+.sticker.green {
+  background: var(--green);
+}
+.sticker.purple {
+  background: var(--purple);
+  color: var(--paper-2);
+}
+
+.badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--yellow);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.badge.quiet {
+  background: transparent;
+  color: var(--ink-soft);
+  border-color: var(--ink-soft);
+}
+
+/* ---- Controls ------------------------------------------------------------ */
+
 input,
-button {
+button,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -181,115 +261,152 @@ button {
 input[type="text"],
 input[type="number"] {
   width: 100%;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--glass-border);
-  border-radius: 14px;
+  padding: 13px 15px;
+  background: var(--paper-2);
+  border: var(--line);
+  border-radius: var(--radius);
+  box-shadow: inset 3px 3px 0 rgba(20, 17, 15, 0.07);
   outline: none;
-  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+  font-family: var(--font-body);
+  transition: box-shadow 0.15s var(--ease), transform 0.15s var(--ease);
 }
 
-input::placeholder {
-  color: rgba(154, 166, 200, 0.75);
+input[type="text"]:focus,
+input[type="number"]:focus {
+  box-shadow: var(--shadow-sm);
+  transform: translate(-2px, -2px);
 }
 
-input:focus-visible {
-  border-color: rgba(124, 92, 255, 0.85);
-  background: rgba(255, 255, 255, 0.1);
+input::placeholder,
+textarea::placeholder {
+  color: rgba(74, 64, 56, 0.5);
 }
 
 .code-input {
   text-transform: uppercase;
-  letter-spacing: 0.42em;
+  letter-spacing: 0.34em;
   text-align: center;
-  font-size: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 1.7rem;
   font-weight: 700;
+  padding: 16px 12px 16px 22px;
 }
 
 .btn {
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-strong);
-  border-radius: 14px;
-  padding: 14px 18px;
+  border: var(--line);
+  background: var(--paper-2);
+  border-radius: var(--radius);
+  padding: 13px 18px;
   cursor: pointer;
-  font-weight: 650;
-  transition: transform 0.16s var(--ease), background 0.2s var(--ease),
-    box-shadow 0.2s var(--ease), opacity 0.2s var(--ease);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease),
+    background 0.15s var(--ease);
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.18);
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow);
 }
 
+/* Pressing a physical button pushes it flat against the page. */
 .btn:active:not(:disabled) {
-  transform: translateY(1px) scale(0.99);
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 var(--ink);
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
+  box-shadow: 2px 2px 0 var(--ink);
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), #5b8cff);
-  border-color: transparent;
-  box-shadow: 0 12px 30px rgba(92, 108, 255, 0.35);
+  background: var(--pink);
+  color: var(--paper-2);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #8d70ff, #6f9bff);
+  background: #ff2a74;
+}
+
+.btn-blue {
+  background: var(--blue);
+  color: var(--paper-2);
 }
 
 .btn-ghost {
   background: transparent;
+  box-shadow: none;
+  border-style: dashed;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(20, 17, 15, 0.06);
+  box-shadow: none;
+  transform: translate(-1px, -1px);
 }
 
 .btn-danger {
-  color: #ffd7e2;
-  border-color: rgba(255, 92, 138, 0.45);
+  background: var(--orange);
+  color: var(--paper-2);
 }
 
 .btn:focus-visible,
-.choice:focus-visible {
-  outline: 3px solid rgba(124, 92, 255, 0.7);
-  outline-offset: 2px;
+.choice:focus-visible,
+.pack:focus-visible {
+  outline: 3px dashed var(--blue);
+  outline-offset: 3px;
 }
 
-/* ---- Player chips / voting choices ---- */
+/* ---- Player chips -------------------------------------------------------- */
+
 .players {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 9px;
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 7px;
+  padding: 7px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--glass-border);
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-weight: 500;
   font-size: 0.92rem;
+  /* Alternating tilt, applied per chip from the component's index. */
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.chip.is-host {
+  background: var(--yellow);
 }
 
 .dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: #34d399;
-  box-shadow: 0 0 10px #34d399;
+  background: var(--green);
+  border: 2px solid var(--ink);
+  flex: none;
 }
 
 .dot.off {
-  background: #64748b;
-  box-shadow: none;
+  background: var(--paper);
 }
+
+/* ---- Voting choices ------------------------------------------------------ */
 
 .choices {
   display: grid;
-  gap: 10px;
+  gap: 11px;
 }
 
 .choice {
@@ -297,111 +414,155 @@ input:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--glass-border);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  border: var(--line);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   text-align: left;
-  transition: transform 0.16s var(--ease), background 0.2s var(--ease),
-    border-color 0.2s var(--ease);
-  animation: rise 0.42s var(--ease) both;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 1.02rem;
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform 0.14s var(--ease), box-shadow 0.14s var(--ease),
+    background 0.14s var(--ease);
+  animation: rise 0.4s var(--bounce) both;
 }
 
 .choice:hover:not(:disabled) {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.13);
-  border-color: rgba(124, 92, 255, 0.6);
+  transform: rotate(0deg) translate(-2px, -2px);
+  box-shadow: var(--shadow);
+  background: #fff;
 }
 
+/* A chosen vote reads as a filled ink block, unmistakable at a glance. */
 .choice[aria-pressed="true"] {
-  background: linear-gradient(
-    135deg,
-    rgba(124, 92, 255, 0.35),
-    rgba(34, 211, 238, 0.22)
-  );
-  border-color: rgba(124, 92, 255, 0.85);
+  background: var(--ink);
+  color: var(--paper);
+  transform: rotate(0deg) translate(3px, 3px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.choice[aria-pressed="true"] .badge {
+  background: var(--yellow);
+  color: var(--ink);
 }
 
 .choice:disabled {
-  opacity: 0.5;
+  opacity: 0.42;
   cursor: not-allowed;
+  box-shadow: 2px 2px 0 var(--ink);
 }
 
-/* ---- Question ---- */
-.question {
-  font-size: clamp(1.35rem, 5.6vw, 1.9rem);
-  line-height: 1.3;
+.choice .num {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
   font-weight: 700;
+  min-width: 1.6em;
+  opacity: 0.6;
+}
+
+/* ---- Question ------------------------------------------------------------ */
+
+.question {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 6.6vw, 2.3rem);
+  line-height: 1.1;
+  text-transform: uppercase;
   letter-spacing: -0.01em;
 }
 
+/* The prompt is highlighted with a marker swipe rather than a gradient. */
 .question em {
   font-style: normal;
-  background: linear-gradient(120deg, var(--accent-2), var(--accent-3));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  background: var(--yellow);
+  box-shadow: 0 0 0 4px var(--yellow);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
-/* ---- Progress ---- */
-.bar {
-  height: 8px;
+/* ---- Timer --------------------------------------------------------------- */
+
+.timer {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 12px;
+  border: 2px solid var(--ink);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--paper-2);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.timer.urgent {
+  background: var(--pink);
+  color: var(--paper-2);
+  animation: throb 0.9s ease-in-out infinite alternate;
+}
+
+.timer .unit {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* ---- Progress ------------------------------------------------------------ */
+
+.bar {
+  height: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper-2);
   overflow: hidden;
 }
 
+/* Candy stripes, drawn with a repeating gradient — a print pattern, not a
+   soft color blend. */
 .bar > i {
   display: block;
   height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  transition: width 0.5s var(--ease);
-}
-
-/* ---- Reveal / splash ---- */
-.reveal-name {
-  font-size: clamp(2rem, 9vw, 3.2rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  animation: pop 0.55s var(--ease) both;
-}
-
-.splash {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  background: radial-gradient(
-    90% 90% at 50% 40%,
-    rgba(124, 92, 255, 0.45),
-    rgba(7, 11, 24, 0.96)
+  background-color: var(--blue);
+  background-image: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.45) 0 5px,
+    transparent 5px 11px
   );
-  animation: fade 0.4s var(--ease) both;
+  transition: width 0.45s var(--ease);
 }
 
-.splash-word {
-  font-size: clamp(4rem, 26vw, 11rem);
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 0.9;
-  background: linear-gradient(120deg, #ffffff, var(--accent-2) 55%, var(--accent-3));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: pop 0.7s var(--ease) both, glow 2.4s ease-in-out infinite alternate;
+.bar.pink > i {
+  background-color: var(--pink);
+}
+
+.bar.green > i {
+  background-color: var(--green);
+}
+
+/* ---- Reveal / tally ------------------------------------------------------ */
+
+.reveal-name {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 10vw, 3.6rem);
+  line-height: 0.95;
+  text-transform: uppercase;
+  animation: stamp 0.5s var(--bounce) both;
+  /* Hard two-tone offset, like a misregistered second print pass. */
+  text-shadow: 4px 4px 0 var(--pink);
 }
 
 .tally-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  animation: rise 0.4s var(--ease) both;
+  padding: 9px 0;
+  border-bottom: 2px dashed rgba(20, 17, 15, 0.25);
+  animation: rise 0.36s var(--ease) both;
 }
 
 .tally-row:last-child {
@@ -409,30 +570,287 @@ input:focus-visible {
 }
 
 .tally-row .who {
-  min-width: 6.5em;
-  font-weight: 650;
+  min-width: 6em;
+  font-weight: 700;
 }
 
 .tally-row .count {
+  font-family: var(--font-mono);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
   min-width: 2.2em;
   text-align: right;
 }
 
 .tally-row .bar {
   flex: 1;
+  height: 13px;
 }
 
-.badge {
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(124, 92, 255, 0.3);
-  border: 1px solid rgba(124, 92, 255, 0.55);
+/* A winner's row is boxed in ink so the eye lands on it first. */
+.tally-row.won {
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  margin: 2px 0;
 }
+
+.tally-row.won:last-child {
+  border-bottom: 2px solid var(--ink);
+}
+
+/* ---- Vote breakdown ("who voted for whom") ------------------------------ */
+
+.breakdown {
+  display: grid;
+  gap: 7px;
+}
+
+.vote-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+  padding: 7px 11px;
+  background: rgba(20, 17, 15, 0.045);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--purple);
+}
+
+.vote-line .arrow {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--purple);
+}
+
+.vote-line .voter {
+  font-weight: 700;
+}
+
+.vote-line .target {
+  background: var(--yellow);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.vote-line .target.skipped {
+  background: transparent;
+  border: 2px dashed var(--ink-soft);
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+/* ---- Room code ticket ---------------------------------------------------- */
+
+.ticket {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 16px;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--radius);
+  box-shadow: 4px 4px 0 var(--pink);
+}
+
+.ticket .label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.ticket .code {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+/* ---- Pack picker --------------------------------------------------------- */
+
+.pack-list {
+  display: grid;
+  gap: 9px;
+}
+
+.pack {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  padding: 13px 15px;
+  border-radius: var(--radius);
+  border: var(--line);
+  background: var(--paper-2);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.14s var(--ease), box-shadow 0.14s var(--ease),
+    background 0.14s var(--ease);
+}
+
+.pack:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow);
+}
+
+.pack[aria-pressed="true"] {
+  background: var(--yellow);
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.pack-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pack-head strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.pack-sample {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.custom-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 110px;
+  padding: 13px 15px;
+  border-radius: var(--radius);
+  border: var(--line);
+  background: var(--paper-2);
+  box-shadow: inset 3px 3px 0 rgba(20, 17, 15, 0.07);
+  font-family: var(--font-body);
+  line-height: 1.55;
+  outline: none;
+}
+
+.custom-input:focus {
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- House rules --------------------------------------------------------- */
+
+.rules {
+  display: grid;
+  gap: 14px;
+}
+
+.rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.rule-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rule-text strong {
+  font-size: 0.95rem;
+}
+
+.rule-text span {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+/* A chunky physical toggle. The knob is a hard-edged square that slides. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 58px;
+  height: 32px;
+  border: var(--line);
+  border-radius: 999px;
+  background: var(--paper-2);
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink);
+  transition: background 0.18s var(--ease);
+}
+
+.switch[aria-checked="true"] {
+  background: var(--green);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  background: var(--ink);
+  border-radius: 999px;
+  transition: transform 0.2s var(--bounce);
+}
+
+.switch[aria-checked="true"]::after {
+  transform: translateX(26px);
+  background: var(--paper-2);
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--paper-2);
+  box-shadow: 2px 2px 0 var(--ink);
+  flex: none;
+}
+
+.stepper button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 5px 12px;
+  line-height: 1;
+  transition: background 0.12s var(--ease);
+}
+
+.stepper button:hover:not(:disabled) {
+  background: var(--yellow);
+}
+
+.stepper button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.stepper .value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 3.1em;
+  text-align: center;
+  padding: 6px 0;
+  border-left: 2px solid var(--ink);
+  border-right: 2px solid var(--ink);
+  background: rgba(20, 17, 15, 0.04);
+}
+
+/* ---- Toast --------------------------------------------------------------- */
 
 .toast {
   position: fixed;
@@ -441,40 +859,117 @@ input:focus-visible {
   transform: translateX(-50%);
   z-index: 50;
   padding: 12px 18px;
-  border-radius: 14px;
-  background: rgba(255, 92, 138, 0.22);
-  border: 1px solid rgba(255, 92, 138, 0.5);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  animation: rise 0.3s var(--ease) both;
+  border-radius: var(--radius);
+  background: var(--orange);
+  color: var(--paper-2);
+  border: var(--line);
+  box-shadow: var(--shadow);
+  font-weight: 500;
+  max-width: min(90vw, 460px);
+  cursor: pointer;
+  animation: rise 0.28s var(--bounce) both;
 }
 
+/* ---- Splash ("YOU") ------------------------------------------------------ */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  background: var(--ink);
+  cursor: pointer;
+  overflow: hidden;
+  animation: fade 0.25s var(--ease) both;
+}
+
+.splash-word {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: clamp(4.5rem, 30vw, 13rem);
+  line-height: 0.85;
+  letter-spacing: -0.03em;
+  color: var(--paper);
+  animation: stamp 0.6s var(--bounce) both;
+}
+
+/* Two offset copies of the word in flat inks, the way a cheap print job
+   misaligns its plates. */
+.splash-word::before,
+.splash-word::after {
+  content: attr(data-word);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.splash-word::before {
+  color: var(--pink);
+  transform: translate(-7px, 5px);
+}
+
+.splash-word::after {
+  color: var(--blue);
+  transform: translate(7px, -5px);
+}
+
+.splash .tiny {
+  color: var(--paper);
+  border-bottom-color: var(--pink);
+}
+
+.splash .lead {
+  color: rgba(247, 240, 221, 0.7);
+}
+
+/* Confetti flecks scattered behind the word. */
+.confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.confetti i {
+  position: absolute;
+  display: block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--ink);
+  animation: fall 2.6s linear infinite;
+}
+
+/* ---- Entrance animations ------------------------------------------------- */
+
 .pulse-in {
-  animation: rise 0.45s var(--ease) both;
+  animation: rise 0.42s var(--bounce) both;
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(14px) rotate(-1deg);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) rotate(0deg);
   }
 }
 
-@keyframes pop {
+/* A stamp coming down onto the page: overshoot, settle, tiny settle-back. */
+@keyframes stamp {
   0% {
     opacity: 0;
-    transform: scale(0.7);
+    transform: scale(1.5) rotate(-6deg);
   }
-  60% {
-    transform: scale(1.06);
+  70% {
+    opacity: 1;
+    transform: scale(0.97) rotate(1deg);
   }
   100% {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) rotate(0deg);
   }
 }
 
@@ -487,16 +982,26 @@ input:focus-visible {
   }
 }
 
-@keyframes glow {
+@keyframes throb {
   from {
-    filter: drop-shadow(0 0 12px rgba(124, 92, 255, 0.5));
+    transform: scale(1);
   }
   to {
-    filter: drop-shadow(0 0 42px rgba(34, 211, 238, 0.8));
+    transform: scale(1.07);
   }
 }
 
-/* Accessibility: honour reduced-motion and drop the heavy blur fallback. */
+@keyframes fall {
+  from {
+    transform: translateY(-12vh) rotate(0deg);
+  }
+  to {
+    transform: translateY(112vh) rotate(540deg);
+  }
+}
+
+/* ---- Accessibility ------------------------------------------------------ */
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -505,76 +1010,25 @@ input:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass {
-    background: rgba(18, 24, 44, 0.92);
+  /* Keep the tilt — it is layout, not motion — but drop the movement. */
+  .choice:hover:not(:disabled),
+  .pack:hover,
+  .btn:hover:not(:disabled) {
+    transform: none;
   }
 }
 
-/* Question pack picker -------------------------------------------------- */
-
-.pack-list {
-  display: grid;
-  gap: 8px;
+/* Small phones: tighten the gutters so cards keep their breathing room. */
+@media (max-width: 380px) {
+  .shell {
+    padding: 14px 11px 48px;
+    gap: 16px;
+  }
+  .card {
+    padding: 16px;
+  }
+  .chip {
+    font-size: 0.86rem;
+  }
 }
 
-.pack {
-  display: grid;
-  gap: 4px;
-  text-align: left;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-}
-
-.pack:hover {
-  transform: translateY(-1px);
-  border-color: rgba(124, 92, 255, 0.55);
-}
-
-.pack[aria-pressed="true"] {
-  border-color: rgba(124, 92, 255, 0.9);
-  background: rgba(124, 92, 255, 0.2);
-}
-
-.pack-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.pack-sample {
-  font-style: italic;
-  opacity: 0.75;
-}
-
-.custom-input {
-  width: 100%;
-  resize: vertical;
-  min-height: 96px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(8, 12, 26, 0.72);
-  color: inherit;
-  font: inherit;
-  line-height: 1.5;
-}
-
-.custom-input::placeholder {
-  color: rgba(255, 255, 255, 0.34);
-}
-
-.custom-input:focus {
-  outline: none;
-  border-color: rgba(124, 92, 255, 0.8);
-  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.18);
-}

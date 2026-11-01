@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Countdown } from "@/components/Countdown";
 import { PlayerChips } from "@/components/PlayerChips";
 import { Splash } from "@/components/Splash";
 import { clearSession, loadSession, type Session } from "@/lib/client";
@@ -61,8 +62,8 @@ export function Room({
   if (!room) {
     return (
       <main className="shell">
-        <section className="glass card stack">
-          <h1>Connecting&hellip;</h1>
+        <section className="glass card card-tabbed stack" data-tab="Connecting">
+          <h1>Hold on&hellip;</h1>
           <p className="lead">
             {connected ? "Fetching the room." : "No connection yet. Retrying automatically."}
           </p>
@@ -77,30 +78,31 @@ export function Room({
       ? Math.round((room.votesSubmitted / room.eligibleCount) * 100)
       : 0;
 
+  const winners = room.results?.winners ?? [];
+  const winnerIds = new Set(winners.map((w) => w.id));
+
   return (
     <>
       {showSplash && <Splash onDone={() => setShowSplash(false)} />}
 
       <main className="shell">
         <header className="spread">
-          <div className="stack" style={{ gap: 2 }}>
-            <span className="tiny">Room</span>
-            <strong style={{ fontSize: "1.5rem", letterSpacing: "0.18em" }}>
-              {room.code}
-            </strong>
+          <div className="ticket">
+            <span className="label">Room code</span>
+            <span className="code">{room.code}</span>
           </div>
-          <div className="row">
-            {room.round > 0 && <span className="chip">Round {room.round}</span>}
-            <span className="chip">{room.packName}</span>
-            {!connected && <span className="chip">reconnecting</span>}
+          <div className="row" style={{ gap: 8 }}>
+            {room.round > 0 && <span className="badge quiet">Round {room.round}</span>}
+            <span className="badge quiet">{room.packName}</span>
+            {!connected && <span className="badge">reconnecting</span>}
           </div>
         </header>
 
         {room.phase === "lobby" && (
-          <section className="glass card stack pulse-in">
+          <section className="glass card card-tabbed stack" data-tab="Lobby">
             <div className="spread">
-              <h2>Players in the room</h2>
-              <span className="muted tiny">
+              <h2>Who&rsquo;s here</h2>
+              <span className="badge quiet">
                 {room.players.length}/{room.config.maxPlayers}
               </span>
             </div>
@@ -109,9 +111,9 @@ export function Room({
               onKick={(playerId) => act({ type: "kick", playerId })}
               canKick={isHost}
             />
-            <p className="muted" style={{ margin: 0, fontSize: "0.86rem" }}>
-              Share the code <strong>{room.code}</strong>. You need at least 3 players to
-              start.
+            <p className="lead" style={{ fontSize: "0.92rem" }}>
+              Share the code <strong>{room.code}</strong>. You need at least 3 players
+              to start.
             </p>
             {isHost ? (
               <button
@@ -122,16 +124,23 @@ export function Room({
                 {room.players.length < 3 ? "Waiting for players\u2026" : "Start the round"}
               </button>
             ) : (
-              <p className="lead" style={{ margin: 0 }}>
-                Waiting for the host to start&hellip;
-              </p>
+              <p className="lead">Waiting for the host to start&hellip;</p>
             )}
           </section>
         )}
 
         {room.phase === "question" && (
-          <section className="glass card stack pulse-in" key={`q-${room.round}`}>
-            <span className="tiny">Who is most likely to</span>
+          <section className="glass card card-tabbed stack" data-tab="Question" key={`q-${room.round}`}>
+            <div className="spread">
+              <span className="tiny" style={{ borderBottom: "none" }}>
+                Who is most likely to
+              </span>
+              <Countdown
+                endsAt={room.phaseEndsAt}
+                serverNow={room.serverNow}
+                label="to vote"
+              />
+            </div>
             <p className="question">
               <em>{room.prompt}</em>
             </p>
@@ -145,15 +154,26 @@ export function Room({
         )}
 
         {room.phase === "voting" && (
-          <section className="glass card stack pulse-in" key={`v-${room.round}`}>
-            <span className="tiny">Who is most likely to</span>
+          <section className="glass card card-tabbed stack" data-tab="Vote" key={`v-${room.round}`}>
+            <div className="spread">
+              <span className="tiny" style={{ borderBottom: "none" }}>
+                Who is most likely to
+              </span>
+              <Countdown
+                endsAt={room.phaseEndsAt}
+                serverNow={room.serverNow}
+                label="left"
+              />
+            </div>
             <p className="question">
               <em>{room.prompt}</em>
             </p>
             <div className="stack" style={{ gap: 6 }}>
               <div className="spread">
-                <span className="muted tiny">Votes in</span>
-                <span className="muted tiny">
+                <span className="muted" style={{ fontSize: "0.84rem", fontWeight: 500 }}>
+                  Votes in
+                </span>
+                <span className="muted" style={{ fontSize: "0.84rem" }}>
                   {room.votesSubmitted}/{room.eligibleCount}
                 </span>
               </div>
@@ -172,12 +192,20 @@ export function Room({
                     className="choice"
                     aria-pressed={mine}
                     disabled={selfBlocked}
-                    style={{ animationDelay: `${index * 45}ms` }}
+                    style={
+                      {
+                        animationDelay: `${index * 45}ms`,
+                        "--tilt": index % 2 === 0 ? "-0.7deg" : "0.6deg",
+                      } as CSSProperties
+                    }
                     onClick={() => act({ type: "vote", targetId: player.id })}
                   >
-                    <span>
-                      {player.name}
-                      {player.id === room.you.id ? " (you)" : ""}
+                    <span className="row" style={{ gap: 8 }}>
+                      <span className="num">{String(index + 1).padStart(2, "0")}</span>
+                      <span>
+                        {player.name}
+                        {player.id === room.you.id ? " (you)" : ""}
+                      </span>
                     </span>
                     {mine && <span className="badge">your vote</span>}
                   </button>
@@ -197,7 +225,7 @@ export function Room({
               )}
             </div>
 
-            <p className="muted" style={{ margin: 0, fontSize: "0.84rem" }}>
+            <p className="lead" style={{ fontSize: "0.88rem" }}>
               You can change your vote until the reveal. Nobody sees who you picked.
             </p>
             {isHost && (
@@ -209,16 +237,16 @@ export function Room({
         )}
 
         {room.phase === "reveal" && room.results && (
-          <section className="glass card stack pulse-in" key={`r-${room.round}`}>
-            <span className="tiny">
-              {room.results.isTie ? "It is a tie" : "Most likely to"} — round {room.round}
+          <section className="glass card card-tabbed stack" data-tab="Result" key={`r-${room.round}`}>
+            <span className="tiny" style={{ borderBottom: "none" }}>
+              {room.results.isTie ? "It is a tie" : `Round ${room.round}`}
             </span>
 
             {room.results.maxVotes === 0 ? (
               <p className="question">Nobody voted. Suspicious.</p>
             ) : (
               <p className="reveal-name">
-                {room.results.winners.map((w) => w.name).join(" & ")}
+                {winners.map((w) => w.name).join(" & ")}
               </p>
             )}
 
@@ -233,12 +261,12 @@ export function Room({
             <div>
               {room.results.tally.map((entry, index) => (
                 <div
-                  className="tally-row"
+                  className={`tally-row${winnerIds.has(entry.player.id) ? " won" : ""}`}
                   key={entry.player.id}
                   style={{ animationDelay: `${index * 60}ms` }}
                 >
                   <span className="who">{entry.player.name}</span>
-                  <span className="bar">
+                  <span className={`bar${winnerIds.has(entry.player.id) ? "" : " pink"}`}>
                     <i
                       style={{
                         // maxVotes is 0 when nobody voted, which would make
@@ -253,6 +281,31 @@ export function Room({
               ))}
             </div>
 
+            {room.results.breakdown.length > 0 && (
+              <div className="stack" style={{ gap: 8 }}>
+                <span className="tiny">Who voted for whom</span>
+                <div className="breakdown">
+                  {room.results.breakdown.map((row, index) => (
+                    <div
+                      className="vote-line"
+                      key={`${row.voter}-${index}`}
+                      style={{ animationDelay: `${index * 40}ms` }}
+                    >
+                      <span className="voter">{row.voter}</span>
+                      <span className="arrow" aria-hidden="true">
+                        &rarr;
+                      </span>
+                      {row.target === null ? (
+                        <span className="target skipped">skipped</span>
+                      ) : (
+                        <span className="target">{row.target}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {isHost ? (
               <div className="row" style={{ gap: 10 }}>
                 <button
@@ -266,15 +319,13 @@ export function Room({
                 </button>
               </div>
             ) : (
-              <p className="lead" style={{ margin: 0 }}>
-                Waiting for the host&hellip;
-              </p>
+              <p className="lead">Waiting for the host&hellip;</p>
             )}
           </section>
         )}
 
         {room.phase === "scoreboard" && (
-          <section className="glass card stack pulse-in">
+          <section className="glass card card-tabbed stack" data-tab="Standings">
             <h2>Standings</h2>
             {[...room.players]
               .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
@@ -286,9 +337,9 @@ export function Room({
                   <span className="count">{player.score}</span>
                 </div>
               ))}
-            {room.results && room.results.winners.length > 0 && (
-              <p className="muted" style={{ margin: 0, fontSize: "0.86rem" }}>
-                Last round: {room.results.winners.map((w) => w.name).join(" & ")}
+            {room.results && winners.length > 0 && (
+              <p className="lead" style={{ fontSize: "0.88rem" }}>
+                Last round: {winners.map((w) => w.name).join(" & ")}
               </p>
             )}
             {isHost && (
@@ -300,7 +351,7 @@ export function Room({
         )}
 
         {room.phase === "ended" && (
-          <section className="glass card stack pulse-in">
+          <section className="glass card card-tabbed stack" data-tab="Over">
             <h2>The host ended the game</h2>
             <p className="lead">Thanks for playing.</p>
             <button

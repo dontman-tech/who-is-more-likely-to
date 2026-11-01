@@ -391,3 +391,92 @@ describe("seePlayer", () => {
     assert.equal(ctx.room.players[ctx.ids[0]].lastSeen, now + 30_000);
   });
 });
+
+describe("reveal breakdown", () => {
+  it("reports who voted for whom as names", () => {
+    const ctx = toVoting(3);
+    castVote(ctx.room, ctx.ids[0], ctx.ids[1]);
+    castVote(ctx.room, ctx.ids[1], ctx.ids[2]);
+    castVote(ctx.room, ctx.ids[2], ctx.ids[1]);
+    const view = toPublicRoom(ctx.room, ctx.ids[0]);
+    assert.deepEqual(
+      view.results?.breakdown,
+      [
+        { voter: "P0", target: "P1" },
+        { voter: "P1", target: "P2" },
+        { voter: "P2", target: "P1" },
+      ],
+      "the breakdown reads as names, not ids",
+    );
+  });
+
+  it("records a skip as a null target rather than dropping the row", () => {
+    const ctx = toVoting(3);
+    castVote(ctx.room, ctx.ids[0], ctx.ids[1]);
+    castVote(ctx.room, ctx.ids[1], null);
+    castVote(ctx.room, ctx.ids[2], ctx.ids[1]);
+    const view = toPublicRoom(ctx.room, ctx.ids[0]);
+    const skipped = view.results?.breakdown.find((row) => row.voter === "P1");
+    assert.deepEqual(skipped, { voter: "P1", target: null });
+  });
+
+  it("survives a voter leaving between the vote and the reveal", () => {
+    const ctx = toVoting(4);
+    castVote(ctx.room, ctx.ids[0], ctx.ids[1]);
+    castVote(ctx.room, ctx.ids[1], ctx.ids[2]);
+    castVote(ctx.room, ctx.ids[2], ctx.ids[1]);
+    castVote(ctx.room, ctx.ids[3], ctx.ids[1]);
+    // A departed target must still be named, not silently become a skip.
+    leaveRoom(ctx.room, ctx.ids[2]);
+    const view = toPublicRoom(ctx.room, ctx.ids[0]);
+    const row = view.results?.breakdown.find((r) => r.voter === "P1");
+    assert.deepEqual(row, { voter: "P1", target: "P2" }, "the leaver is still named");
+  });
+
+  it("hides the breakdown entirely when the room asks for privacy", () => {
+    const ctx = toVoting(3, { revealVotes: false });
+    castVote(ctx.room, ctx.ids[0], ctx.ids[1]);
+    castVote(ctx.room, ctx.ids[1], ctx.ids[2]);
+    castVote(ctx.room, ctx.ids[2], ctx.ids[1]);
+    const view = toPublicRoom(ctx.room, ctx.ids[0]);
+    assert.deepEqual(view.results?.breakdown, [], "no vote map is exposed");
+    // The tally itself is still shown, or the round would have no result.
+    assert.ok(view.results && view.results.tally.length > 0);
+  });
+
+  it("keeps showing votes for a room predating the privacy option", () => {
+    const ctx = toVoting(3);
+    // Simulate a room persisted before `revealVotes` existed.
+    delete (ctx.room.config as unknown as Record<string, unknown>).revealVotes;
+    castVote(ctx.room, ctx.ids[0], ctx.ids[1]);
+    castVote(ctx.room, ctx.ids[1], ctx.ids[2]);
+    castVote(ctx.room, ctx.ids[2], ctx.ids[1]);
+    const view = toPublicRoom(ctx.room, ctx.ids[0]);
+    assert.equal(view.results?.breakdown.length, 3, "old rooms keep their votes visible");
+  });
+});
+
+describe("server clock", () => {
+  it("reports the server's own time, not the caller's", () => {
+    const ctx = toVoting(3);
+    const view = toPublicRoom(ctx.room, ctx.ids[0], 1_700_000_000_000);
+    assert.equal(view.serverNow, 1_700_000_000_000);
+  });
+
+  it("exposes a deadline that a client can count down against", () => {
+    const ctx = setup(3, { votingSeconds: 30 });
+    const now = Date.now();
+    startRound(ctx.room, ctx.hostId, now);
+    openVoting(ctx.room, ctx.hostId, now);
+    const view = toPublicRoom(ctx.room, ctx.ids[0], now);
+    assert.equal(view.phaseEndsAt, now + 30_000);
+    assert.equal(view.serverNow, now);
+    assert.equal(view.phaseEndsAt! - view.serverNow, 30_000, "the client sees a full window");
+  });
+
+  it("reports no deadline when a phase waits on the host", () => {
+    const ctx = toVoting(3, { votingSeconds: 0 });
+    const view = toPublicRoom(ctx.room, ctx.ids[0]);
+    assert.equal(view.phaseEndsAt, null);
+  });
+});

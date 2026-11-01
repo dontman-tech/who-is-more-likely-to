@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Rule, Stepper, Switch } from "@/components/Controls";
 import {
   createRoom,
   joinRoom,
@@ -7,6 +8,17 @@ import {
   saveSession,
 } from "@/lib/client";
 import type { QuestionPack } from "@domain/packs";
+import type { RoomConfig } from "@domain/types";
+
+/** Host-tunable rules, with the copy the panel shows for each. */
+const DEFAULT_RULES: RoomConfig = {
+  maxPlayers: 12,
+  questionSeconds: 0,
+  votingSeconds: 30,
+  selfVote: false,
+  skipsAllowed: true,
+  revealVotes: true,
+};
 
 /**
  * Landing screen: one decision, two paths. The "resume" banner appears only
@@ -25,6 +37,8 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
   const [showPacks, setShowPacks] = useState(false);
   const [customText, setCustomText] = useState("");
   const [customMode, setCustomMode] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [rules, setRules] = useState<RoomConfig>(DEFAULT_RULES);
 
   // One prompt per line. Blank lines are dropped client-side for immediate
   // feedback; the server trims, de-dupes, and caps the list again on arrival.
@@ -67,6 +81,7 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
       const { room, token } = await createRoom(name.trim(), {
         packId: customMode ? undefined : packId,
         customPrompts: customMode ? customPrompts : undefined,
+        config: rules,
       });
       saveSession({ code: room.code, token, name: name.trim(), playerId: room.you.id });
       navigate(`/room/${room.code}`);
@@ -94,31 +109,37 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
   }
 
   const selectedPack = packs.find((p) => p.id === packId);
+  const setRule = <K extends keyof RoomConfig>(key: K, value: RoomConfig[K]) =>
+    setRules((current) => ({ ...current, [key]: value }));
 
   return (
     <main className="shell">
-      <header className="stack pulse-in" style={{ paddingTop: 26 }}>
-        <span className="tiny">Party mode</span>
+      <header className="stack" style={{ paddingTop: 22 }}>
+        <span className="sticker pink" style={{ alignSelf: "flex-start" }}>
+          Party mode
+        </span>
         <h1>Who is most likely to&hellip;</h1>
         <p className="lead">
-          One question on every phone. Everyone votes in secret. One person gets the
-          spotlight.
+          One question on every phone. Everyone votes in secret. One person gets
+          the spotlight.
         </p>
       </header>
 
       {resume && (
-        <section className="glass card row spread pulse-in">
+        <section className="glass card row spread">
           <div className="stack" style={{ gap: 2 }}>
             <strong>Welcome back, {resume.name}</strong>
-            <span className="muted tiny">Room {resume.code}</span>
+            <span className="muted tiny" style={{ borderBottom: "none" }}>
+              Room {resume.code}
+            </span>
           </div>
-          <button className="btn" onClick={() => navigate(`/room/${resume.code}`)}>
+          <button className="btn btn-blue" onClick={() => navigate(`/room/${resume.code}`)}>
             Rejoin
           </button>
         </section>
       )}
 
-      <section className="glass card stack pulse-in">
+      <section className="glass card card-tabbed stack" data-tab="Set up">
         <label className="stack" style={{ gap: 6 }}>
           <span className="tiny">Your name</span>
           <input
@@ -151,7 +172,7 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
         )}
 
         {mode === "home" && (
-          <div className="stack pulse-in" style={{ gap: 8 }}>
+          <div className="stack" style={{ gap: 10 }}>
             <button
               className="btn btn-ghost"
               onClick={() => setShowPacks((v) => !v)}
@@ -163,9 +184,6 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
                 : selectedPack
                   ? `Pack: ${selectedPack.name}`
                   : "Choose a pack"}
-              <span className="muted tiny" style={{ marginLeft: 8 }}>
-                {showPacks ? "hide" : "change"}
-              </span>
             </button>
 
             {showPacks && (
@@ -183,10 +201,12 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
                   >
                     <span className="pack-head">
                       <strong>{pack.name}</strong>
-                      <span className="muted tiny">{pack.prompts.length} questions</span>
+                      <span className="badge quiet">{pack.prompts.length} q</span>
                     </span>
-                    <span className="muted tiny">{pack.description}</span>
-                    <span className="muted tiny pack-sample">
+                    <span className="muted" style={{ fontSize: "0.86rem" }}>
+                      {pack.description}
+                    </span>
+                    <span className="muted pack-sample" style={{ fontSize: "0.86rem" }}>
                       e.g. &ldquo;{pack.prompts[0]}&rdquo;
                     </span>
                   </button>
@@ -199,9 +219,9 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
                 >
                   <span className="pack-head">
                     <strong>Write your own</strong>
-                    <span className="muted tiny">custom</span>
+                    <span className="badge quiet">custom</span>
                   </span>
-                  <span className="muted tiny">
+                  <span className="muted" style={{ fontSize: "0.86rem" }}>
                     Type your own &ldquo;most likely to&hellip;&rdquo; questions, one per line.
                   </span>
                 </button>
@@ -220,11 +240,77 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
                   onChange={(e) => setCustomText(e.target.value)}
                   disabled={busy}
                 />
-                <span className="muted tiny">
+                <span className="muted" style={{ fontSize: "0.86rem" }}>
                   {customPrompts.length} question{customPrompts.length === 1 ? "" : "s"}
                   {customPrompts.length < 3 ? " — add at least 3" : ""}
                 </span>
               </label>
+            )}
+
+            <button
+              className="btn btn-ghost"
+              onClick={() => setShowRules((v) => !v)}
+              aria-expanded={showRules}
+              disabled={busy}
+            >
+              House rules
+            </button>
+
+            {showRules && (
+              <div className="rules pulse-in">
+                <Rule title="Seats" hint="How many can join this room.">
+                  <Stepper
+                    value={rules.maxPlayers}
+                    min={3}
+                    max={20}
+                    label="seats"
+                    onChange={(v) => setRule("maxPlayers", v)}
+                  />
+                </Rule>
+                <Rule title="Discussion time" hint="0 means the host advances by hand.">
+                  <Stepper
+                    value={rules.questionSeconds}
+                    min={0}
+                    max={120}
+                    step={15}
+                    suffix="s"
+                    label="discussion seconds"
+                    onChange={(v) => setRule("questionSeconds", v)}
+                  />
+                </Rule>
+                <Rule title="Voting time" hint="0 means the host reveals by hand.">
+                  <Stepper
+                    value={rules.votingSeconds}
+                    min={0}
+                    max={120}
+                    step={15}
+                    suffix="s"
+                    label="voting seconds"
+                    onChange={(v) => setRule("votingSeconds", v)}
+                  />
+                </Rule>
+                <Rule title="Vote for yourself" hint="Off keeps it fair. On keeps it funny.">
+                  <Switch
+                    checked={rules.selfVote}
+                    label="vote for yourself"
+                    onChange={(v) => setRule("selfVote", v)}
+                  />
+                </Rule>
+                <Rule title="Allow skipping" hint="Players may abstain on a question.">
+                  <Switch
+                    checked={rules.skipsAllowed}
+                    label="allow skipping"
+                    onChange={(v) => setRule("skipsAllowed", v)}
+                  />
+                </Rule>
+                <Rule title="Reveal the votes" hint="Show who voted for whom at the end.">
+                  <Switch
+                    checked={rules.revealVotes}
+                    label="reveal the votes"
+                    onChange={(v) => setRule("revealVotes", v)}
+                  />
+                </Rule>
+              </div>
             )}
           </div>
         )}
@@ -266,22 +352,22 @@ export function Home({ navigate }: { navigate: (to: string) => void }) {
         </div>
 
         {error && (
-          <p role="alert" className="muted" style={{ color: "#ffb3c8", margin: 0 }}>
+          <p role="alert" className="muted" style={{ color: "#c81f5b", fontWeight: 500 }}>
             {error}
           </p>
         )}
       </section>
 
-      <section className="glass card stack pulse-in">
+      <section className="glass card stack">
         <h2>How it works</h2>
-        <ol className="lead" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+        <ol className="lead" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.75 }}>
           <li>Someone creates a room, picks a pack, and reads out the code.</li>
           <li>Everyone joins on their own phone and picks a name.</li>
           <li>The question lands on every screen at the same time.</li>
           <li>Votes are secret, then the top name is revealed.</li>
           <li>The winner&rsquo;s own phone flashes the word YOU.</li>
         </ol>
-        <p className="muted" style={{ margin: 0, fontSize: "0.86rem" }}>
+        <p className="muted" style={{ fontSize: "0.88rem" }}>
           Best with 3 or more players. Leave any time — your name and your vote are
           removed cleanly.
         </p>

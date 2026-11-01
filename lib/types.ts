@@ -35,6 +35,11 @@ export interface RoomConfig {
   selfVote: boolean;
   /** Allow abstaining ("skip"). On by default. */
   skipsAllowed: boolean;
+  /**
+   * Show who voted for whom at the reveal. On by default — seeing the votes is
+   * half the fun — but a group that would rather not know can turn it off.
+   */
+  revealVotes: boolean;
 }
 
 export interface Room {
@@ -57,7 +62,12 @@ export interface Room {
   tally: Record<string, number>;
   maxVotes: number;
   winners: string[];
-  /** Populated at reveal so the UI can show who voted for whom. */
+  /**
+   * Who voted for whom, as display names, frozen at reveal time. A `null`
+   * target is an explicit skip. Stored as names rather than ids because this is
+   * display-only history: a player who leaves after the reveal must still show
+   * up in the record of how the round was decided.
+   */
   breakdown: Array<{ voter: string; target: string | null }>;
   deck: string[];
   /** Which question pack this room draws from. Shown in the lobby. */
@@ -103,12 +113,23 @@ export interface PublicRoom {
     tally: Array<{ player: PublicPlayer; votes: number }>;
     maxVotes: number;
     winners: PublicPlayer[];
+    /**
+     * Who voted for whom, resolved to names server-side. A target may be null
+     * (an explicit skip). Names are baked in because a voter or target may have
+     * left the room between the vote and the reveal.
+     */
     breakdown: Array<{ voter: string; target: string | null }>;
     /** True when two or more players tied for the top. */
     isTie: boolean;
   };
   /** Epoch ms when the current timed phase auto-advances, else null. */
   phaseEndsAt: number | null;
+  /**
+   * The server's clock at the moment this snapshot was built. Timers are
+   * rendered against `phaseEndsAt - serverNow` rather than the device clock,
+   * so a phone with the wrong time still counts down correctly.
+   */
+  serverNow: number;
   /** Present only for the requesting player. */
   you: { id: string; name: string; hasVoted: boolean; votedFor: string | null };
 }

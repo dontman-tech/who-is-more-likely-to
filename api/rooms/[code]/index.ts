@@ -40,12 +40,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Presence first, so this player's own projection reads as online even
       // when the write is skipped. Then settle any expired timer, and finally
       // age out anyone who has gone quiet, so the dot on their chip goes off.
-      const presenceChanged = seePlayer(room, player.id);
-      const phaseChanged = tick(room);
-      const staleChanged = markStale(room);
+      // One clock reading for the whole request, so presence, timers, and the
+      // snapshot the client times its countdown against cannot disagree.
+      const now = Date.now();
+      const presenceChanged = seePlayer(room, player.id, now);
+      const phaseChanged = tick(room, now);
+      const staleChanged = markStale(room, undefined, now);
 
       return {
-        result: toPublicRoom(room, player.id),
+        result: toPublicRoom(room, player.id, now),
         changed: presenceChanged || phaseChanged || staleChanged,
       };
     });

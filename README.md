@@ -19,6 +19,13 @@ uses Upstash's free tier, which needs no credit card. See
   every device renders the same question at the same time.
 - **Secret voting.** Votes are hidden until the reveal. Nobody can see who
   picked whom, and the running tally is withheld until the round ends.
+- **A live countdown.** Timed phases show the seconds remaining on every screen.
+  The timer is computed from the server's clock, so a phone with the wrong time
+  still counts down correctly.
+- **The vote map.** At the reveal you can see who voted for whom — including who
+  skipped. A host who would rather not know can switch it off in house rules.
+- **House rules.** Seats, discussion time, voting time, self-voting, skipping,
+  and vote visibility are all settable before the room is created.
 - **The YOU splash.** Only the winner's device shows the full-screen `YOU`
   moment, so the payoff stays personal instead of being a label everyone sees.
 - **Clean leaving.** Leave or get removed and your name, your seat, and your
@@ -27,7 +34,10 @@ uses Upstash's free tier, which needs no credit card. See
 - **Survives a locked phone.** A refresh, a background tab, or a phone lock does
   not cost you your seat or your vote. The session is restored from local
   storage on the next visit.
-- **Glassmorphic UI** with smooth transitions and an animated aurora backdrop.
+- **A risograph look.** Cream paper, flat saturated inks, thick black keylines,
+  and hard offset shadows that sit beside a shape the way ink sits beside a
+  screen print. The winner's `YOU` is drawn three times and deliberately
+  misregistered, like a cheap print job.
 
 ## Question packs
 
@@ -380,6 +390,11 @@ even if every phone is backgrounded and no client holds the clock.
 | `votingSeconds` | 30 | Voting window; `0` means the host advances |
 | `selfVote` | false | Whether you may vote for yourself |
 | `skipsAllowed` | true | Whether abstaining is allowed |
+| `revealVotes` | true | Show who voted for whom at the reveal |
+
+All six are settable from the **House rules** panel before creating a room, and
+the panel is a thin wrapper over this same config — there is no second source of
+truth.
 
 ---
 
@@ -415,6 +430,13 @@ compare-and-delete release.
 **Tokens never leak.** The player's session secret is excluded from every
 broadcast, and the running tally is withheld until the reveal, so nobody can
 snipe a vote at the last second.
+
+**Timers trust the server.** A snapshot carries both the deadline
+(`phaseEndsAt`) and the server's own clock (`serverNow`). The client renders
+`phaseEndsAt - serverNow` and applies the offset between the two clocks, so a
+phone whose time is wrong — or a laptop that slept through the round — still
+shows the real seconds remaining. The ticker runs locally between polls, so the
+number moves without spending a request per second.
 
 **Presence is honest.** A player who stops polling is marked disconnected after
 20 seconds and their chip dims, but they stay in the room and stay eligible.
