@@ -45,10 +45,10 @@ Four curated packs ship with the game, and hosts can write their own.
 
 | Pack | Questions | For |
 | --- | --- | --- |
-| Party Starter | 32 | Any group, safe for everyone |
-| Chaos Mode | 28 | People who know each other well |
-| Work Mode | 24 | Team socials and icebreakers |
-| After Hours | 18 | Close friends only |
+| Party Starter | 50 | Any group, safe for everyone |
+| Chaos Mode | 50 | People who know each other well |
+| Work Mode | 50 | Team socials and icebreakers |
+| After Hours | 50 | Close friends only |
 | Custom | yours | Anything you type |
 
 In the custom pack, type one "most likely to…" ending per line. The server
