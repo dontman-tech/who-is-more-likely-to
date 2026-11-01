@@ -4,15 +4,15 @@
  * Serves the built frontend and mounts the real Vercel handlers behind a tiny
  * Vercel-compatible request/response shim. Two uses:
  *
- *   1. Local development — `npm run build && npm run serve`, no Redis needed.
+ *   1. Local development — `npm run build && npm run serve`, no database needed.
  *   2. A no-database deployment — run this as a long-lived process on any host
  *      that keeps a Node process alive, and the in-memory store persists for
  *      the lifetime of the process. No third-party service, no card, nothing
  *      to configure. Rooms are lost on restart or redeploy, which for a party
  *      game that lasts an evening is usually exactly what you want.
  *
- * Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to switch to Redis
- * and make rooms survive a restart.
+ * Set DATABASE_URL to a Postgres connection string (Neon, or any Postgres) to
+ * switch to Postgres and make rooms survive a restart.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -159,8 +159,8 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  const store = process.env.UPSTASH_REDIS_REST_URL
-    ? "Upstash Redis (rooms survive restarts)"
+  const store = process.env.DATABASE_URL
+    ? "Postgres (rooms survive restarts)"
     : "in-memory (rooms reset when this process stops)";
   console.log(`who-is-more-likely-to  ->  http://localhost:${PORT}`);
   console.log(`  static: ${DIST}`);

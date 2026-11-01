@@ -46,13 +46,14 @@ export async function withRoom<T>(
  * reports that it changed something.
  *
  * This is the read path. A poll that finds nothing new — no expired timer, no
- * presence worth persisting — must not spend a write. On Redis that is a real
- * cost: a room with six phones polling every 3s would otherwise issue a write
- * per poll, and the whole point of the free tier is to stay inside it.
+ * presence worth persisting — must not spend a write. That matters on Postgres
+ * because every write is a round trip that holds the room's lock and a
+ * connection: with six phones polling every 3s, a write per poll would queue
+ * behind itself and add latency to every vote.
  *
- * The common case is optimistically probed against a clone first, because a
- * lock-and-write cycle costs four commands (lock, get, write, release) while a
- * bare get costs one. Only when the probe reports a change do we take the lock
+ * The common case is optimistically probed against a clone first, because the
+ * locked path costs a connection checkout, a transaction and a lock; a bare
+ * read costs one query. Only when the probe reports a change do we take the lock
  * and redo the work on the real room, so the fast path can never mutate shared
  * state or return a result that a concurrent writer has invalidated.
  */

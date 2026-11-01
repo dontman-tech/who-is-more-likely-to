@@ -1,15 +1,15 @@
-# Zero-database deployment.
+# Single-process deployment.
 #
 # Builds the client and runs it from a single long-lived Node process, so the
-# in-memory room store persists for as long as the container runs. No Redis, no
-# card, nothing to configure.
+# in-memory room store persists for as long as the container runs. No database,
+# no card, nothing to configure.
 #
 #   docker build -t who-is-more-likely-to .
 #   docker run -p 12000:12000 who-is-more-likely-to
 #
-# Add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to keep rooms across
-# restarts. Without them, rooms live exactly as long as the container does,
-# which for an evening of play is usually what you want.
+# Pass DATABASE_URL (Neon, or any Postgres) to keep rooms across restarts.
+# Without it, rooms live exactly as long as the container does, which for an
+# evening of play is usually what you want.
 FROM node:22-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./

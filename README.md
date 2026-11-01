@@ -86,7 +86,7 @@ api/            Vercel Node functions — the whole HTTP surface
 lib/            Framework-free game domain (no React, no HTTP)
   engine.ts                   All game rules and phase transitions
   packs.ts                    Question packs and custom-prompt sanitising
-  store.ts                    RoomStore: memory by default, Redis when configured
+  store.ts                    RoomStore: memory by default, Postgres when configured
   server.ts                   Lock / persist / validate / error helpers
   types.ts                    Domain and public (wire) types
 src/            React client
@@ -97,7 +97,7 @@ src/            React client
   components/                 Player chips and the winner splash
 scripts/        serve.ts — runs the real handlers locally and in production
 tests/          Engine, packs, store, and read-path tests
-Dockerfile      Zero-database deployment (see below)
+Dockerfile      Single-process deployment (see below)
 ```
 
 The important split is `lib/` versus `api/`. The engine never imports React or
@@ -119,7 +119,7 @@ There are two ways to run it.
 ### 1. Full stack, one command (recommended)
 
 This builds the client and serves both the frontend and the real API handlers
-from one process, using an in-memory store. No Redis needed.
+from one process, using an in-memory store. No database needed.
 
 ```bash
 npm run build
@@ -146,6 +146,25 @@ npm test            # engine, packs, and store tests
 npm run build       # typecheck, then production bundle
 ```
 
+The store tests run against a **real Postgres**, not a stand-in, so they are
+skipped unless you point them at a scratch database:
+
+```bash
+createdb mlt_test
+TEST_DATABASE_URL=postgres://localhost/mlt_test npm test
+```
+
+Without `TEST_DATABASE_URL` the suite still passes; it just does not exercise
+the database paths. Point `TEST_DATABASE_URL` at a scratch database, never at
+production — the tests write and delete rooms.
+
+Any Postgres will do. With Docker:
+
+```bash
+docker run -d --name mlt-pg -e POSTGRES_PASSWORD=pg -p 5433:5432 postgres:17
+TEST_DATABASE_URL=postgres://postgres:pg@127.0.0.1:5433/postgres npm test
+```
+
 ---
 
 ## Deploying — free, with no card
@@ -156,9 +175,9 @@ reason not to.
 
 | Option | Cost | Card needed | Rooms survive restart? | Best for |
 | --- | --- | --- | --- | --- |
-| **A. Free Upstash Redis + Vercel** | $0 | No | Yes | Recommended. Zero setup cost, survives deploys. |
+| **A. Free Neon Postgres + Vercel** | $0 | No | Yes | Recommended. Survives deploys and scale-out. |
 | **B. Vercel alone** | $0 | No | No | Trying it out; single-instance traffic. |
-| **C. Docker on any free host** | $0 | No | No (yes with Redis) | You want one process you control. |
+| **C. Docker on any free host** | $0 | No | No (yes with Postgres) | You want one process you control. |
 
 ### Why a store is needed at all
 
@@ -167,79 +186,109 @@ If rooms only lived in one instance's memory, two players in the same room could
 be routed to different instances and see different games. A shared store fixes
 that. `lib/store.ts` picks one automatically:
 
-- both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` set → Redis
+- `DATABASE_URL` set to a Postgres connection string → Postgres
 - otherwise → in-memory, which is correct for a single process
 
-There is no flag to flip and no code change. Setting the two variables is the
+There is no flag to flip and no code change. Setting the one variable is the
 whole switch.
 
 ---
 
-### Option A — Vercel + free Upstash Redis (recommended)
+### Option A — Vercel + free Neon Postgres (recommended)
 
-Upstash's free tier is genuinely free: **500,000 commands per month**, 256 MB,
-and **no credit card**. You only need to add a card if you choose to upgrade.
+Neon's free plan is genuinely free and **needs no credit card**: 1 GB of storage
+per project, 100 compute-hours per month, and no time limit. Compute scales to
+zero after a few minutes idle, so a game that runs on Friday nights costs
+essentially nothing.
 
 **1. Create the database.**
 
-Easiest: in the Vercel dashboard, open your project and go to
-**Storage → Create Database → Upstash Redis**, then **Connect Project** and
-select this project for all environments. Vercel injects both variables for you.
+Go to <https://neon.com>, sign up, and create a project. Pick the region closest
+to your players — every poll is a round trip, so distance shows up as lag.
 
-Or create it directly at <https://console.upstash.com> → **Create Database**,
-choose the region closest to your players, and copy the REST URL and token.
+**2. Copy the connection string.**
 
-**2. Add the variables.**
+In the Neon console, open **Connect** and copy the connection string. It looks
+like:
 
-```bash
-vercel env add UPSTASH_REDIS_REST_URL
-vercel env add UPSTASH_REDIS_REST_TOKEN
+```
+postgresql://user:password@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
 ```
 
-Or paste them under **Settings → Environment Variables**. Set them for
-Production, Preview, and Development.
+Two things to get right:
 
-**3. Redeploy.**
+- **Use the pooled host** (the one with `-pooler` in it). Vercel may run many
+  concurrent function instances, and the pooled endpoint is what keeps them from
+  exhausting the database's connection limit. The store is written to work
+  correctly through the pooler.
+- **Keep `sslmode=require`.** Neon requires TLS.
+
+**3. Add it to Vercel.**
+
+```bash
+vercel env add DATABASE_URL
+```
+
+Or paste it under **Settings → Environment Variables** as `DATABASE_URL`. Set it
+for Production, Preview, and Development.
+
+**4. Redeploy.**
 
 ```bash
 vercel --prod
 ```
 
-**4. Confirm it worked.** Create a room, then check the function logs. The
-server prints which store it chose at startup. Rooms now survive redeploys.
+Vercel does not apply a new environment variable to an existing deployment, so
+the redeploy is not optional.
+
+**5. Confirm it worked.** Create a room, then check the function logs. The
+server prints which store it chose at startup. Rooms now survive redeploys — the
+quick check is to create a room, redeploy, and reload: with Postgres the room is
+still there.
+
+That is the whole setup. The `rooms` table is created automatically on first
+use; there is no migration to run.
+
+#### A note on the Vercel marketplace integration
+
+Vercel's Storage tab can also create the database for you. Be aware that the
+integration has historically injected its credentials under different names
+(`KV_REST_API_URL` / `KV_REST_API_TOKEN`) rather than `DATABASE_URL`. This app
+reads `DATABASE_URL` and nothing else, so if you take that route, add a
+`DATABASE_URL` variable yourself pointing at the same database. Creating the
+project in the Neon console and pasting `DATABASE_URL` avoids the confusion
+entirely, which is why it is the path described above.
+
+#### How the store behaves
+
+- **Reads do not write unless something changed.** A poll that finds nothing new
+  costs one query and no write. Enforced by `withRoomRead` in `lib/server.ts`
+  and covered by `tests/read-path.test.ts`.
+- **Idle polls skip the lock.** The common case is a single `SELECT`. The locked
+  path costs a connection checkout, a transaction and an advisory lock, so
+  avoiding it is what keeps polling cheap.
+- **Presence is recorded at most once per player per 10 seconds**, not on every
+  poll, so faster polling is actually *cheaper per poll*.
+- **Hidden tabs stop polling.** A phone in a pocket stops querying, and refreshes
+  once when it comes back.
+- **Rooms expire after 6 hours** of inactivity, in memory and in Postgres. The
+  sweeper runs at most once an hour, from the write path.
+- **Writes are serialised by a Postgres advisory lock**, so two players voting at
+  the same instant cannot clobber each other even on separate instances.
 
 #### Staying inside the free tier
 
-The free tier is counted in commands, not requests, so the design keeps command
-usage low on purpose:
+The free plan is bounded by compute-hours and storage, not request count, so the
+constraints are generous for this workload. Storage is trivial: a room is a few
+kilobytes of JSON, and expired rooms are deleted.
 
-- **Reads do not write unless something changed.** A poll that finds nothing new
-  costs one read and zero writes. This is enforced by `withRoomRead` in
-  `lib/server.ts` and covered by `tests/read-path.test.ts`.
-- **Idle polls skip the lock.** The common case is a single `GET`. A
-  lock-and-write cycle costs four commands, so avoiding it is the main saving.
-- **Presence is recorded at most once per player per 10 seconds**, not on every
-  poll. Because of this, faster polling is actually *cheaper per poll* — the
-  writes amortise over more reads.
-- **Hidden tabs stop polling.** A phone in a pocket stops spending commands, and
-  refreshes once when it comes back.
-- **Rooms expire after 6 hours** of inactivity, in memory and in Redis.
+The one thing worth watching is **compute-hours**. Neon scales to zero after
+idle, which is what makes an occasional party nearly free, but a room left open
+on someone's screen all day keeps compute awake. 100 compute-hours per month is
+about 3.3 hours a day of continuous activity — comfortable for game nights,
+tight if you leave a tab open around the clock.
 
-Measured against a real Upstash database, with four players:
-
-| Situation | Commands | Per poll |
-| --- | --- | --- |
-| Setting up a room (create + 3 joins) | 13 | — |
-| Idle lobby, polling every 3s for 60s | 165 | 2.1 |
-| A live voting round, polling every 1.1s for 30s | 167 | 1.6 |
-
-A live round runs at roughly 20,000 commands per hour. A typical evening — say
-twenty rounds over twenty minutes — lands around 7,000 commands, so the free
-tier's 500,000 per month covers on the order of **70 game sessions**. That is
-plenty for a party game; the limit is not something you will hit by accident.
-
-If you ever do approach it, raise the polling interval in
-`src/hooks/useRoom.ts` (the `1100` and `3000` values).
+If you want the game fully free of any account at all, use Option C.
 
 ---
 
@@ -265,8 +314,8 @@ docker build -t who-is-more-likely-to .
 docker run -p 12000:12000 who-is-more-likely-to
 ```
 
-Open <http://localhost:12000>. To keep rooms across restarts, pass the two
-Upstash variables with `-e`; the container switches to Redis on its own.
+Open <http://localhost:12000>. To keep rooms across restarts, pass `DATABASE_URL`
+with `-e`; the container switches to Postgres on its own.
 
 Without Docker:
 
@@ -309,12 +358,18 @@ vercel --prod   # production
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `UPSTASH_REDIS_REST_URL` | No | Shared room storage. Omit for single-process use. |
-| `UPSTASH_REDIS_REST_TOKEN` | No | Auth for the above. |
+| `DATABASE_URL` | No | Postgres connection string for shared room storage. Omit for single-process use. |
 | `PORT` | No | Port for `npm start` / Docker. Defaults to 12000. |
+| `TEST_DATABASE_URL` | No | Only for tests. Point at a scratch database, never production. |
+| `PGSSL_NO_VERIFY` | No | Set to `1` to skip TLS certificate verification. See below. |
 
-Both Redis variables must be set together. Setting only one is treated as "no
-store configured" and falls back to memory.
+With no `DATABASE_URL` the store falls back to memory, which is correct only for
+a single process. On Vercel that means players can fail to see each other.
+
+**TLS.** Managed Postgres requires TLS and its certificates chain to a public
+CA, so verification is on by default and needs no configuration. If you hit a
+certificate-chain error on an unusual runtime, set `PGSSL_NO_VERIFY=1` — but
+understand that this disables verification of the server's certificate.
 
 ### Preview deployments and deployment protection
 
@@ -416,7 +471,7 @@ the tab is hidden, so a phone in a pocket costs nothing.
 to change the room — that is what keeps the game moving when phones are
 backgrounded. But it only writes when something actually changed, and skips the
 lock entirely when nothing did. An idle poll is a single read. This is what
-keeps a real game inside the free command budget.
+keeps polling off the write path, so a busy room does not queue on its own lock.
 
 **Sessions persist locally.** The session token is kept in `localStorage`, which
 is the client half of the rejoin contract the server already supports. A locked
@@ -424,8 +479,9 @@ phone is a non-event.
 
 **Writes are serialised per room.** Every mutation runs under a per-room lock and
 is persisted before the response is sent, so two simultaneous votes cannot
-clobber each other. On Redis the lock is a short-lived key with an atomic
-compare-and-delete release.
+clobber each other. On Postgres the lock is a transaction-scoped advisory lock,
+which is correct even through a connection pooler, and the read, the mutation
+and the write all happen inside one transaction.
 
 **Tokens never leak.** The player's session secret is excluded from every
 broadcast, and the running tally is withheld until the reveal, so nobody can
@@ -443,9 +499,9 @@ number moves without spending a request per second.
 Their votes are not thrown away because their screen slept.
 
 **The store is pluggable.** `lib/store.ts` exposes one small interface with two
-implementations, in-memory and Redis, chosen from the environment. The engine
+implementations, in-memory and Postgres, chosen from the environment. The engine
 never knows which is in use, so the game runs with no database at all, and
-gaining persistence is two environment variables rather than a rewrite.
+gaining persistence is one environment variable rather than a rewrite.
 
 ---
 
