@@ -41,6 +41,45 @@ export async function withRoom<T>(
   });
 }
 
+/**
+ * Load a room and run `fn` under the lock, but only write back when `fn`
+ * reports that it changed something.
+ *
+ * This is the read path. A poll that finds nothing new — no expired timer, no
+ * presence worth persisting — must not spend a write. On Redis that is a real
+ * cost: a room with six phones polling every 3s would otherwise issue a write
+ * per poll, and the whole point of the free tier is to stay inside it.
+ *
+ * The common case is optimistically probed against a clone first, because a
+ * lock-and-write cycle costs four commands (lock, get, write, release) while a
+ * bare get costs one. Only when the probe reports a change do we take the lock
+ * and redo the work on the real room, so the fast path can never mutate shared
+ * state or return a result that a concurrent writer has invalidated.
+ */
+export async function withRoomRead<T>(
+  code: string,
+  fn: (room: Room) => { result: T; changed: boolean } | Promise<{ result: T; changed: boolean }>,
+): Promise<T> {
+  const store = getStore();
+  const normalized = code.trim().toUpperCase();
+  const missing = () => new GameError("Room not found. Check the code and try again.", 404);
+
+  const current = await store.get(normalized);
+  if (!current) throw missing();
+
+  const probe = structuredClone(current);
+  const probed = await fn(probe);
+  if (!probed.changed) return probed.result;
+
+  return store.withLock(normalized, async () => {
+    const room = await store.get(normalized);
+    if (!room) throw missing();
+    const { result, changed } = await fn(room);
+    if (changed) await store.set(normalized, room);
+    return result;
+  });
+}
+
 export function bearerToken(req: VercelRequest): string | null {
   const header = req.headers.authorization;
   if (typeof header === "string" && header.startsWith("Bearer ")) {

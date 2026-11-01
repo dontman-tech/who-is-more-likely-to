@@ -1,12 +1,18 @@
 /**
- * Local development server.
+ * Single-process server.
  *
- * `vite` alone cannot run the files under `api/`, because those are Vercel
- * Node functions. This server mounts the real handlers behind a tiny
- * Vercel-compatible request/response shim and serves the built frontend, so
- * the whole game can be played locally with one command and no Redis.
+ * Serves the built frontend and mounts the real Vercel handlers behind a tiny
+ * Vercel-compatible request/response shim. Two uses:
  *
- * Usage: npm run build && npm run dev:server
+ *   1. Local development — `npm run build && npm run serve`, no Redis needed.
+ *   2. A no-database deployment — run this as a long-lived process on any host
+ *      that keeps a Node process alive, and the in-memory store persists for
+ *      the lifetime of the process. No third-party service, no card, nothing
+ *      to configure. Rooms are lost on restart or redeploy, which for a party
+ *      game that lasts an evening is usually exactly what you want.
+ *
+ * Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to switch to Redis
+ * and make rooms survive a restart.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -154,9 +160,19 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, () => {
   const store = process.env.UPSTASH_REDIS_REST_URL
-    ? "Upstash Redis"
+    ? "Upstash Redis (rooms survive restarts)"
     : "in-memory (rooms reset when this process stops)";
   console.log(`who-is-more-likely-to  ->  http://localhost:${PORT}`);
   console.log(`  static: ${DIST}`);
   console.log(`  store:  ${store}`);
 });
+
+// Hosts that redeploy or scale down send SIGTERM; exiting promptly keeps
+// restarts clean instead of leaving the port held by a dying process.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    server.close(() => process.exit(0));
+    // Do not wait forever for keep-alive connections to drain.
+    setTimeout(() => process.exit(0), 2_000).unref();
+  });
+}

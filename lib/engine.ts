@@ -41,6 +41,21 @@ const MIN_PLAYERS = 3;
 const MAX_NAME_LENGTH = 18;
 
 /**
+ * How long a player may go without being heard from before they read as
+ * offline. Clients poll at least every 3s, so this absorbs a slow network while
+ * still letting a closed phone drop off the list.
+ */
+export const PRESENCE_TIMEOUT_MS = 20_000;
+
+/**
+ * How long a stored sighting is treated as fresh. A poll inside this window
+ * records nothing, which cuts presence writes to roughly one per player per ten
+ * seconds. Kept well below `PRESENCE_TIMEOUT_MS` so a persisted timestamp is
+ * never itself old enough to read as offline.
+ */
+export const PRESENCE_PERSIST_MS = 10_000;
+
+/**
  * Joining mid-round is allowed, but the newcomer is not eligible to vote
  * until the next round. This avoids the "join at the last second to swing
  * a vote" exploit while never blocking someone who wants to get in.
@@ -212,8 +227,12 @@ export function kickPlayer(
   leaveRoom(room, targetId, now);
 }
 
-/** Mark a player as disconnected after a heartbeat timeout, without removing them. */
-export function markStale(room: Room, timeoutMs = 20_000, now = Date.now()): void {
+/** Mark players as disconnected after a heartbeat timeout, without removing them. */
+export function markStale(
+  room: Room,
+  timeoutMs = PRESENCE_TIMEOUT_MS,
+  now = Date.now(),
+): boolean {
   let changed = false;
   for (const player of Object.values(room.players)) {
     const stale = now - player.lastSeen > timeoutMs;
@@ -223,6 +242,7 @@ export function markStale(room: Room, timeoutMs = 20_000, now = Date.now()): voi
     }
   }
   if (changed) bump(room, now);
+  return changed;
 }
 
 export function heartbeat(room: Room, playerId: string, now = Date.now()): void {
@@ -232,6 +252,27 @@ export function heartbeat(room: Room, playerId: string, now = Date.now()): void 
   if (!player.connected) player.connected = true;
   // Heartbeats are cheap and frequent; they intentionally do not bump
   // `revision`, or every poll would invalidate every other client's cache.
+}
+
+/**
+ * Note that a player was just heard from. Returns true when the sighting is
+ * worth persisting, false when the stored value is still fresh enough.
+ *
+ * Every request loads the room from the store and discards it again unless it
+ * writes, so there is no cross-request memory to refresh: `lastSeen` in hand is
+ * exactly the persisted value. The interval is therefore measured from the last
+ * *persisted* sighting, which is what keeps a client that polls every 3s from
+ * writing on every poll while still leaving a stored timestamp recent enough
+ * that `markStale` never reads an active player as offline.
+ */
+export function seePlayer(room: Room, playerId: string, now = Date.now()): boolean {
+  const player = room.players[playerId];
+  if (!player) return false;
+  const aged = now - player.lastSeen > PRESENCE_PERSIST_MS;
+  if (!aged && player.connected) return false;
+  player.lastSeen = now;
+  player.connected = true;
+  return true;
 }
 
 export function startRound(room: Room, actorId: string, now = Date.now()): void {

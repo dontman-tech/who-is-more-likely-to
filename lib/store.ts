@@ -44,6 +44,32 @@ class KeyedMutex {
 export class MemoryStore implements RoomStore {
   private rooms = new Map<string, Room>();
   private mutex = new KeyedMutex();
+  private sweeper: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Rooms are dropped once they have been idle for `ttlMs`. In the
+   * long-running server mode this process may stay up for weeks, and a party
+   * game leaves a room behind after every evening, so without this the Map
+   * would grow forever. Redis gets the same behaviour from its own key TTL.
+   */
+  constructor(private ttlMs = 6 * 60 * 60 * 1000) {
+    this.sweeper = setInterval(() => this.sweep(), 10 * 60 * 1000);
+    // Do not hold the event loop open just for housekeeping.
+    this.sweeper.unref?.();
+  }
+
+  private sweep(): void {
+    const cutoff = Date.now() - this.ttlMs;
+    for (const [code, room] of this.rooms) {
+      if (room.updatedAt < cutoff) this.rooms.delete(code);
+    }
+  }
+
+  /** Test seam: stop the background sweeper. */
+  dispose(): void {
+    if (this.sweeper) clearInterval(this.sweeper);
+    this.sweeper = null;
+  }
 
   async get(code: string): Promise<Room | null> {
     return this.rooms.get(code) ?? null;

@@ -13,6 +13,7 @@ import {
   openVoting,
   rejoinRoom,
   reveal,
+  seePlayer,
   showScoreboard,
   startRound,
   tick,
@@ -327,5 +328,66 @@ describe("presence", () => {
     assert.equal(ctx.room.players[ctx.ids[0]].connected, false);
     assert.ok(ctx.room.eligible.includes(ctx.ids[0]));
     assert.doesNotThrow(() => castVote(ctx.room, ctx.ids[0], ctx.ids[1]));
+  });
+
+  it("reports whether markStale changed anything", () => {
+    const ctx = setup(3);
+    const now = Date.now();
+    assert.equal(markStale(ctx.room, 20_000, now), false, "nobody is stale yet");
+    assert.equal(markStale(ctx.room, 20_000, now + 30_000), true, "all three went stale");
+    assert.equal(markStale(ctx.room, 20_000, now + 40_000), false, "already stale");
+  });
+});
+
+describe("seePlayer", () => {
+  it("refreshes presence without reporting a change on every poll", () => {
+    const ctx = setup(3);
+    const now = Date.now();
+    // The first sighting is worth persisting: the stored timestamp is the one
+    // from room creation, which is already older than the persist interval.
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now + 30_000), true);
+    // Immediately after, the same player polling again changes nothing.
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now + 30_100), false);
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now + 30_200), false);
+  });
+
+  it("asks for a write once the persisted timestamp ages out", () => {
+    const ctx = setup(3);
+    const now = Date.now();
+    // The room was just created, so the stored sighting is fresh and a poll
+    // right now is not worth a write.
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now), false);
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now + 5_000), false);
+    // Past the persist interval, the sighting is worth recording again.
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now + 10_001), true);
+    // And having persisted, the next poll is quiet again.
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now + 10_100), false);
+  });
+
+  it("reports a change when reviving a disconnected player", () => {
+    const ctx = setup(3);
+    const now = Date.now();
+    ctx.room.players[ctx.ids[0]].connected = false;
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now), true);
+    assert.equal(ctx.room.players[ctx.ids[0]].connected, true);
+  });
+
+  it("leaves the stored timestamp alone when it skips the write", () => {
+    const ctx = setup(3);
+    const now = Date.now();
+    const before = ctx.room.players[ctx.ids[0]].lastSeen;
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now + 100), false);
+    assert.equal(
+      ctx.room.players[ctx.ids[0]].lastSeen,
+      before,
+      "a skipped write must not drift the value",
+    );
+  });
+
+  it("advances the timestamp when it does persist", () => {
+    const ctx = setup(3);
+    const now = Date.now();
+    assert.equal(seePlayer(ctx.room, ctx.ids[0], now + 30_000), true);
+    assert.equal(ctx.room.players[ctx.ids[0]].lastSeen, now + 30_000);
   });
 });

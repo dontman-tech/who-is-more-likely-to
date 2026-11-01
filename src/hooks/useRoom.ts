@@ -11,6 +11,11 @@ import type { PublicRoom } from "@domain/types";
  * indistinguishable from realtime for a turn-based party game, costs one
  * tiny JSON response per tick, and survives every cold start. The revision
  * counter means we only re-render when something actually changed.
+ *
+ * Polling stops entirely while the tab is hidden, which is the single biggest
+ * saver in practice: a phone in a pocket, or a backgrounded tab, would
+ * otherwise poll for the whole game and spend store commands for nothing. On
+ * return the room is refreshed once immediately, so the screen is never stale.
  */
 export function useRoom(code: string | null, token: string | null) {
   const [room, setRoom] = useState<PublicRoom | null>(null);
@@ -53,14 +58,27 @@ export function useRoom(code: string | null, token: string | null) {
     const loop = async () => {
       await refresh();
       if (cancelled) return;
+      // Hidden tabs stop polling: a phone in a pocket should not spend store
+      // commands. The visibility handler below restarts the loop on return.
+      if (document.visibilityState === "hidden") return;
       const fast = phase.current === "voting" || phase.current === "question";
       timer = setTimeout(loop, fast ? 1100 : 3000);
     };
 
+    // Coming back to the tab refreshes once right away, so a phone that was
+    // asleep shows the current phase immediately instead of one tick later.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || cancelled) return;
+      clearTimeout(timer);
+      void loop();
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
     loop();
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [code, token, refresh]);
 

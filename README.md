@@ -4,7 +4,9 @@ A party game for phones. Everyone joins with a room code, one question lands on
 every screen, votes are secret, and the winner's own phone flashes **YOU**.
 
 Built with React, Vite, and TypeScript, with the realtime API as Vercel Node
-functions backed by Upstash Redis.
+functions. It runs for free: no database is required, and the recommended setup
+uses Upstash's free tier, which needs no credit card. See
+[Deploying — free, with no card](#deploying--free-with-no-card).
 
 ---
 
@@ -74,7 +76,7 @@ api/            Vercel Node functions — the whole HTTP surface
 lib/            Framework-free game domain (no React, no HTTP)
   engine.ts                   All game rules and phase transitions
   packs.ts                    Question packs and custom-prompt sanitising
-  store.ts                    RoomStore: memory for dev, Redis for production
+  store.ts                    RoomStore: memory by default, Redis when configured
   server.ts                   Lock / persist / validate / error helpers
   types.ts                    Domain and public (wire) types
 src/            React client
@@ -83,8 +85,9 @@ src/            React client
   hooks/useRoom.ts            Adaptive polling
   lib/client.ts               Typed API client and session storage
   components/                 Player chips and the winner splash
-scripts/        dev-server.ts — runs the real handlers locally, no Redis
-tests/          Engine, packs, and Redis-store tests
+scripts/        serve.ts — runs the real handlers locally and in production
+tests/          Engine, packs, store, and read-path tests
+Dockerfile      Zero-database deployment (see below)
 ```
 
 The important split is `lib/` versus `api/`. The engine never imports React or
@@ -110,7 +113,7 @@ from one process, using an in-memory store. No Redis needed.
 
 ```bash
 npm run build
-npm run dev:server
+npm run serve
 ```
 
 Open <http://localhost:12000>. Rooms live in memory, so they reset when the
@@ -135,9 +138,142 @@ npm run build       # typecheck, then production bundle
 
 ---
 
-## Deploying to Vercel
+## Deploying — free, with no card
 
-### Step 1 — Push the repository
+Rooms have to live somewhere both players and the server can reach. There are
+three ways to do that, all of them $0. Pick the first one unless you have a
+reason not to.
+
+| Option | Cost | Card needed | Rooms survive restart? | Best for |
+| --- | --- | --- | --- | --- |
+| **A. Free Upstash Redis + Vercel** | $0 | No | Yes | Recommended. Zero setup cost, survives deploys. |
+| **B. Vercel alone** | $0 | No | No | Trying it out; single-instance traffic. |
+| **C. Docker on any free host** | $0 | No | No (yes with Redis) | You want one process you control. |
+
+### Why a store is needed at all
+
+Vercel runs each request in a function that may be a fresh, separate instance.
+If rooms only lived in one instance's memory, two players in the same room could
+be routed to different instances and see different games. A shared store fixes
+that. `lib/store.ts` picks one automatically:
+
+- both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` set → Redis
+- otherwise → in-memory, which is correct for a single process
+
+There is no flag to flip and no code change. Setting the two variables is the
+whole switch.
+
+---
+
+### Option A — Vercel + free Upstash Redis (recommended)
+
+Upstash's free tier is genuinely free: **500,000 commands per month**, 256 MB,
+and **no credit card**. You only need to add a card if you choose to upgrade.
+
+**1. Create the database.**
+
+Easiest: in the Vercel dashboard, open your project and go to
+**Storage → Create Database → Upstash Redis**, then **Connect Project** and
+select this project for all environments. Vercel injects both variables for you.
+
+Or create it directly at <https://console.upstash.com> → **Create Database**,
+choose the region closest to your players, and copy the REST URL and token.
+
+**2. Add the variables.**
+
+```bash
+vercel env add UPSTASH_REDIS_REST_URL
+vercel env add UPSTASH_REDIS_REST_TOKEN
+```
+
+Or paste them under **Settings → Environment Variables**. Set them for
+Production, Preview, and Development.
+
+**3. Redeploy.**
+
+```bash
+vercel --prod
+```
+
+**4. Confirm it worked.** Create a room, then check the function logs. The
+server prints which store it chose at startup. Rooms now survive redeploys.
+
+#### Staying inside the free tier
+
+The free tier is counted in commands, not requests, so the design keeps command
+usage low on purpose:
+
+- **Reads do not write unless something changed.** A poll that finds nothing new
+  costs one read and zero writes. This is enforced by `withRoomRead` in
+  `lib/server.ts` and covered by `tests/read-path.test.ts`.
+- **Idle polls skip the lock.** The common case is a single `GET`. A
+  lock-and-write cycle costs four commands, so avoiding it is the main saving.
+- **Presence is recorded at most once per player per 10 seconds**, not on every
+  poll. Because of this, faster polling is actually *cheaper per poll* — the
+  writes amortise over more reads.
+- **Hidden tabs stop polling.** A phone in a pocket stops spending commands, and
+  refreshes once when it comes back.
+- **Rooms expire after 6 hours** of inactivity, in memory and in Redis.
+
+Measured against a real Upstash database, with four players:
+
+| Situation | Commands | Per poll |
+| --- | --- | --- |
+| Setting up a room (create + 3 joins) | 13 | — |
+| Idle lobby, polling every 3s for 60s | 165 | 2.1 |
+| A live voting round, polling every 1.1s for 30s | 167 | 1.6 |
+
+A live round runs at roughly 20,000 commands per hour. A typical evening — say
+twenty rounds over twenty minutes — lands around 7,000 commands, so the free
+tier's 500,000 per month covers on the order of **70 game sessions**. That is
+plenty for a party game; the limit is not something you will hit by accident.
+
+If you ever do approach it, raise the polling interval in
+`src/hooks/useRoom.ts` (the `1100` and `3000` values).
+
+---
+
+### Option B — Vercel alone, no database
+
+If you just want to try it, deploy to Vercel and skip the store. This works, but
+with an important caveat: because each request may hit a different instance,
+players can occasionally fail to see each other. Fine for a solo demo, not for
+a real party.
+
+Set **nothing**. The store falls back to memory. Rooms vanish on redeploy.
+
+---
+
+### Option C — Docker, one process, no database
+
+Any host that keeps a Node process alive will do. One process means the
+in-memory store is shared by every request, so the game is fully correct with no
+database at all.
+
+```bash
+docker build -t who-is-more-likely-to .
+docker run -p 12000:12000 who-is-more-likely-to
+```
+
+Open <http://localhost:12000>. To keep rooms across restarts, pass the two
+Upstash variables with `-e`; the container switches to Redis on its own.
+
+Without Docker:
+
+```bash
+npm ci
+npm run build
+npm start
+```
+
+Hosts that keep a process alive on a free plan include Railway, Render,
+Fly.io, and a plain VPS. Set `PORT` if the host requires a specific one.
+
+---
+
+### Deploying to Vercel from scratch
+
+**1. Push the repository.**
 
 ```bash
 git add -A
@@ -145,57 +281,30 @@ git commit -m "Optimised party game build"
 git push origin main
 ```
 
-### Step 2 — Import the project
+**2. Import the project.** Go to <https://vercel.com/new>, select the
+repository, and let Vercel read `vercel.json`. Leave the build settings alone:
+build command `npm run build`, output directory `dist`. Click **Deploy**.
 
-1. Go to <https://vercel.com/new>.
-2. Select the `who-is-more-likely-to` repository.
-3. Vercel detects Vite from `vercel.json`. Leave the build settings alone:
-   - Build command: `npm run build`
-   - Output directory: `dist`
-4. Click **Deploy**.
+**3. Add a store** if you want rooms to persist. See Option A above.
 
-The first deploy works, but rooms will not persist between requests, because
-each serverless invocation gets its own memory. Do Step 3 to fix that.
+### Deploying from the CLI
 
-### Step 3 — Add Upstash Redis (required for real play)
-
-Vercel functions are ephemeral and scale horizontally. Without a shared store,
-two players can land on different instances and see different rooms.
-
-1. In the Vercel dashboard, open your project.
-2. Go to **Storage** → **Create Database** → **Upstash Redis**.
-3. Choose a region close to your players and create it.
-4. Click **Connect Project** and select this project for **all** environments.
-5. Redeploy (Vercel usually triggers this automatically).
-
-This injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. The store
-switches to Redis automatically when both are present — there is no code change
-and no flag to flip.
-
-To confirm it took effect, open a room, then check the function logs: a Redis
-store logs no in-memory warning, and rooms survive a new deployment.
+```bash
+npm i -g vercel
+vercel          # preview
+vercel --prod   # production
+```
 
 ### Environment variables
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `UPSTASH_REDIS_REST_URL` | Yes, for production | Shared room storage |
-| `UPSTASH_REDIS_REST_TOKEN` | Yes, for production | Auth for the above |
+| `UPSTASH_REDIS_REST_URL` | No | Shared room storage. Omit for single-process use. |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Auth for the above. |
+| `PORT` | No | Port for `npm start` / Docker. Defaults to 12000. |
 
-Set them by hand under **Settings → Environment Variables**, or with the CLI:
-
-```bash
-vercel env add UPSTASH_REDIS_REST_URL
-vercel env add UPSTASH_REDIS_REST_TOKEN
-```
-
-### Deploying from the CLI instead
-
-```bash
-npm i -g vercel
-vercel          # preview deployment
-vercel --prod   # production deployment
-```
+Both Redis variables must be set together. Setting only one is treated as "no
+store configured" and falls back to memory.
 
 ### Preview deployments and deployment protection
 
@@ -285,7 +394,14 @@ so a socket server would be an extra moving part to host and pay for. Adaptive
 polling — about 1.1s while a round is live, 3s in the lobby — is
 indistinguishable from realtime for a turn-based party game, costs one small
 JSON response per tick, and survives every cold start. A revision counter means
-the client only re-renders when something actually changed.
+the client only re-renders when something actually changed. Polling stops while
+the tab is hidden, so a phone in a pocket costs nothing.
+
+**Reads are cheap by design.** A poll can advance a timer, so a read is allowed
+to change the room — that is what keeps the game moving when phones are
+backgrounded. But it only writes when something actually changed, and skips the
+lock entirely when nothing did. An idle poll is a single read. This is what
+keeps a real game inside the free command budget.
 
 **Sessions persist locally.** The session token is kept in `localStorage`, which
 is the client half of the rejoin contract the server already supports. A locked
@@ -299,6 +415,15 @@ compare-and-delete release.
 **Tokens never leak.** The player's session secret is excluded from every
 broadcast, and the running tally is withheld until the reveal, so nobody can
 snipe a vote at the last second.
+
+**Presence is honest.** A player who stops polling is marked disconnected after
+20 seconds and their chip dims, but they stay in the room and stay eligible.
+Their votes are not thrown away because their screen slept.
+
+**The store is pluggable.** `lib/store.ts` exposes one small interface with two
+implementations, in-memory and Redis, chosen from the environment. The engine
+never knows which is in use, so the game runs with no database at all, and
+gaining persistence is two environment variables rather than a rewrite.
 
 ---
 
