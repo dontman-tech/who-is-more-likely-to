@@ -1,6 +1,6 @@
 # Who Is Most Likely To
 
-A party game for phones. Everyone joins with a room code, one question lands on
+A party game for friends. Everyone joins with a room code, one question lands on
 every screen, votes are secret, and the winner's own phone flashes **YOU**.
 
 Built with React, Vite, and TypeScript, with the realtime API as Vercel Node
